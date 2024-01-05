@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import open3d as o3d
 from camera_params import fx_rgb, fy_rgb, cx_rgb, cy_rgb
 
-def project_3d_to_2d(points_3d, image_size=(640, 480)):
+def project_3d_to_2d(points_3d):
     """
     Project 3D points to 2D image space.
 
@@ -15,6 +15,8 @@ def project_3d_to_2d(points_3d, image_size=(640, 480)):
     Returns:
     - image: NumPy array representing the image with drawn points and colors
     """
+    image_size = (640, 480)
+
     # Convert Open3D PointCloud to NumPy array
     points = np.asarray(points_3d.points)
 
@@ -42,31 +44,4 @@ def project_3d_to_2d(points_3d, image_size=(640, 480)):
 
     return image
 
-def project_clusters_to_2d(pcd, labels, cmap='jet'):
-    # Normalize cluster labels to start from 0
-    labels_normalized = labels - labels.min()
 
-    # Map cluster labels to colors using a specified colormap
-    colors = plt.get_cmap(cmap)(labels_normalized / (labels_normalized.max() if labels_normalized.max() > 0 else 1))
-
-    # Set the color of points labeled as noise (labels < 0) to black
-    colors[labels_normalized < 0] = 0
-
-    # Assign colors to the point cloud
-    pcd.colors = o3d.utility.Vector3dVector(colors[:, :3])
-
-    # Project 3D points to 2D image space
-    points_2d = project_3d_to_2d(pcd)
-
-    # Create an empty image
-    image_shape = (int(np.max(points_2d[:, 1]) + 1), int(np.max(points_2d[:, 0]) + 1), 3)
-    image = np.zeros(image_shape, dtype=np.uint8)
-
-    # Fill the image with cluster colors based on the projected 2D points
-    for point, label in zip(points_2d.astype(int), labels_normalized):
-        if label >= 0:
-            image[point[1], point[0], :] = (255 * colors[label, :3]).astype(np.uint8)
-    
-    print(image)
-
-    return image
