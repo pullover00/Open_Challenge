@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import numpy as np
+from scipy.spatial import cKDTree
 
 """ Find clusters of pointcloud
 
@@ -31,51 +32,72 @@ def dbscan(points: np.ndarray,
             The label -1 is assigned to points that are considered to be noise.
     :rtype: np.ndarray
     """
-    # 1. Initially set label for each point to 0
-    labels = np.zeros(len(points), dtype=int)
 
-    # C for labeling clusters
+    labels = np.zeros(len(points), dtype=int)
     C = 0
 
     for data_point in range(len(points)):
         if labels[data_point] != 0:
             continue
 
-        # 2. Retrieve points in an epsilon neighborhood (Region query)
-        neighbors = [region_point for region_point in range(len(points)) if np.linalg.norm(points[region_point] - points[data_point]) < eps]
+        # Calculate distances using vectorized operations
+        distances = np.linalg.norm(points - points[data_point], axis=1)
 
-        # 3. If the number of points is smaller than min_samples, points are marked as noise
+        # Find neighbors within epsilon distance
+        neighbors = np.where(distances < eps)[0]
+
         if len(neighbors) < min_samples:
             labels[data_point] = -1
-
-        # 4. If the number of points is bigger than min_samples, xi is a core point
         else:
-            C += 1  # Cluster name
-            labels[data_point] = C  # Data label with cluster name
+            C += 1
+            labels[data_point] = C
             i = 0
-            while i < len(neighbors):  # Loop over neighboring points
+            while i < len(neighbors):
                 Pn = neighbors[i]
-                if labels[Pn] == -1 or labels[Pn] == 0:  # if point is noise or unlabeled, give it a label
+                if labels[Pn] == -1 or labels[Pn] == 0:
                     labels[Pn] = C
 
-                    # Region query (within the loop)
-                    pt_neighbors = [region_point for region_point in range(len(points)) if np.linalg.norm(points[region_point] - points[Pn]) < eps]
+                    # Calculate distances for the new neighbors using vectorized operations
+                    pt_distances = np.linalg.norm(points - points[Pn], axis=1)
+
+                    # Find new neighbors within epsilon distance
+                    pt_neighbors = np.where(pt_distances < eps)[0]
 
                     if len(pt_neighbors) >= min_samples:
-                        neighbors.extend(pt_neighbors)
+                        neighbors = np.concatenate((neighbors, pt_neighbors))
 
                 i += 1
 
-    # Post-processing: Eliminate small clusters
-    min_cluster_size = 50 
-
-    unique_values, counts = np.unique(labels, return_counts=True)
-    unique_count = len(unique_values)
-
+    min_cluster_size = 150 
     unique_labels, label_counts = np.unique(labels, return_counts=True)
 
+    # Create a mapping from old labels to new labels
+    label_mapping = {label: int(i) + 1 for i, label in enumerate(unique_labels) if label != -1}
+
+    # Print original labels and counts
+#    print("Original labels and counts:")
+#    for label, count in zip(unique_labels, label_counts):
+#        print(f"Cluster: {label}, Count: {count}")
+
+    # Eliminate small clusters
     for label, count in zip(unique_labels, label_counts):
-        if count < min_cluster_size:
+        if count < min_cluster_size and label != -1:
             labels[labels == label] = -1
-    
-    return labels
+
+    # Relabel clusters
+    # Create a mapping from old labels to new labels
+    unique_labels, label_counts = np.unique(labels, return_counts=True)
+
+    new_label = 1
+    for label in unique_labels:
+        if label != -1:
+            labels[labels == label] = new_label
+            new_label += 1
+
+    # Print modified labels and counts
+#    print("Modified labels and counts:")
+#    unique_labels, label_counts = np.unique(labels.astype(int), return_counts=True)
+#    for label, count in zip(unique_labels, label_counts):
+#        print(f"Label: {label}, Count: {count}")
+
+    return labels #.astype(int)
